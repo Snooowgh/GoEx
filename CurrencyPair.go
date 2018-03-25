@@ -27,8 +27,10 @@ var (
 	JPY     = Currency{"JPY", "japanese yen"}
 	BTC     = Currency{"BTC", "bitcoin.org"}
 	XBT     = Currency{"XBT", "bitcoin.org"}
-	BCC     = Currency{"BCC", "bitcoin-abc"}
-	BCH     = Currency{"BCH","bitcoin-abc"}
+	BCH     = Currency{"BCH", "bitcoin-abc"}
+	NAS     = Currency{"NAS", "nas"}
+	MCO     = Currency{"MCO", "nas"}
+	GNX		= Currency{"GNX", "genaro network"}
 	BCX     = Currency{"BCX",""}
 	LTC     = Currency{"LTC", "litecoin.org"}
 	ETH     = Currency{"ETH", ""}
@@ -50,7 +52,7 @@ var (
 
 	BTC_CNY  = CurrencyPair{BTC, CNY}
 	LTC_CNY  = CurrencyPair{LTC, CNY}
-	BCC_CNY  = CurrencyPair{BCC, CNY}
+	BCH_CNY  = CurrencyPair{BCH, CNY}
 	ETH_CNY  = CurrencyPair{ETH, CNY}
 	ETC_CNY  = CurrencyPair{ETC, CNY}
 	EOS_CNY  = CurrencyPair{EOS, CNY}
@@ -71,14 +73,14 @@ var (
 	ETH_USD = CurrencyPair{ETH, USD}
 	ETC_USD = CurrencyPair{ETC, USD}
 	BCH_USD = CurrencyPair{BCH, USD}
-	BCC_USD = CurrencyPair{BCC, USD}
 	XRP_USD = CurrencyPair{XRP, USD}
 	BCD_USD = CurrencyPair{BCD,USD}
 
 	BTC_USDT = CurrencyPair{BTC,USDT}
+	GNX_BTC = CurrencyPair{GNX,BTC}
+	NAS_USDT = CurrencyPair{NAS,USDT}
 	LTC_USDT = CurrencyPair{LTC, USDT}
 	BCH_USDT = CurrencyPair{BCH, USDT}
-	BCC_USDT = CurrencyPair{BCC,USDT}
 	ETC_USDT = CurrencyPair{ETC,USDT}
 	ETH_USDT = CurrencyPair{ETH,USDT}
 	BCD_USDT = CurrencyPair{BCD,USDT}
@@ -98,7 +100,6 @@ var (
 	LTC_BTC = CurrencyPair{LTC, BTC}
 	ETH_BTC = CurrencyPair{ETH, BTC}
 	ETC_BTC = CurrencyPair{ETC, BTC}
-	BCC_BTC = CurrencyPair{BCC, BTC}
 	BCH_BTC = CurrencyPair{BCH, BTC}
 	DCR_BTC = CurrencyPair{DCR, BTC}
 	XRP_BTC = CurrencyPair{XRP ,BTC}
@@ -141,8 +142,6 @@ func NewCurrency(symbol, desc string) Currency {
 		return XBT
 	case "bch", "BCH":
 		return BCH
-	case "bcc", "BCC":
-		return BCC
 	case "ltc", "LTC":
 		return LTC
 	case "sc", "SC":
@@ -151,6 +150,12 @@ func NewCurrency(symbol, desc string) Currency {
 		return ANS
 	case "neo", "NEO":
 		return NEO
+	case "gnx", "GNX":
+		return GNX
+	case "nas", "NAS":
+		return NAS
+	case "eos", "EOS":
+		return EOS
 	default:
 		return Currency{strings.ToUpper(symbol) , desc}
 	}

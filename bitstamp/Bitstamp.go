@@ -98,21 +98,21 @@ func (bitstamp *Bitstamp) GetAccount() (*Account, error) {
 		LoanAmount:   0,
 	}
 	acc.SubAccounts[BCH] = SubAccount{
-		Currency:     BCH,
-		Amount:       ToFloat64(respmap["bch_available"]),
-		ForzenAmount: ToFloat64(respmap["bch_reserved"]),
-		LoanAmount:   0}
+		Currency:BCH,
+		Amount: ToFloat64(respmap["bch_available"]),
+		ForzenAmount:ToFloat64(respmap["bch_reserved"]),
+		LoanAmount:0}
 	return &acc, nil
 }
 
-func (bitstamp *Bitstamp) placeOrder(side string, pair CurrencyPair, amount, price, urlStr string) (*Order, error) {
+func (bitstamp *Bitstamp) placeOrder(side string, pair CurrencyPair, amount, price string) (*Order, error) {
 	params := url.Values{}
 	params.Set("amount", amount)
-	if price != "" {
-		params.Set("price", price)
-	}
+	params.Set("price", price)
 	bitstamp.buildPostForm(&params)
 
+	urlStr := fmt.Sprintf("%sv2/%s/%s/", BASE_URL, side, strings.ToLower(pair.ToSymbol("")))
+	println(urlStr)
 	resp, err := HttpPostForm(bitstamp.client, urlStr, params)
 	if err != nil {
 		return nil, err
@@ -135,15 +135,10 @@ func (bitstamp *Bitstamp) placeOrder(side string, pair CurrencyPair, amount, pri
 		orderSide = SELL
 	}
 
-	orderprice, isok := respmap["price"].(string)
-	if !isok {
-		return nil, errors.New(string(resp))
-	}
-
 	return &Order{
 		Currency:   pair,
 		OrderID:    ToInt(orderId),
-		Price:      ToFloat64(orderprice),
+		Price:      ToFloat64(price),
 		Amount:     ToFloat64(amount),
 		DealAmount: 0,
 		AvgPrice:   0,
@@ -152,32 +147,20 @@ func (bitstamp *Bitstamp) placeOrder(side string, pair CurrencyPair, amount, pri
 		OrderTime:  1}, nil
 }
 
-func (bitstamp *Bitstamp) placeLimitOrder(side string, pair CurrencyPair, amount, price string) (*Order, error) {
-	urlStr := fmt.Sprintf("%sv2/%s/%s/", BASE_URL, side, strings.ToLower(pair.ToSymbol("")))
-	println(urlStr)
-	return bitstamp.placeOrder(side, pair, amount, price, urlStr);
-}
-
-func (bitstamp *Bitstamp) placeMarketOrder(side string, pair CurrencyPair, amount string) (*Order, error) {
-	urlStr := fmt.Sprintf("%sv2/%s/market/%s/", BASE_URL, side, strings.ToLower(pair.ToSymbol("")))
-	println(urlStr)
-	return bitstamp.placeOrder(side, pair, amount, "", urlStr);
-}
-
 func (bitstamp *Bitstamp) LimitBuy(amount, price string, currency CurrencyPair) (*Order, error) {
-	return bitstamp.placeLimitOrder("buy", currency, amount, price)
+	return bitstamp.placeOrder("buy", currency, amount, price)
 }
 
 func (bitstamp *Bitstamp) LimitSell(amount, price string, currency CurrencyPair) (*Order, error) {
-	return bitstamp.placeLimitOrder("sell", currency, amount, price)
+	return bitstamp.placeOrder("sell", currency, amount, price)
 }
 
 func (bitstamp *Bitstamp) MarketBuy(amount, price string, currency CurrencyPair) (*Order, error) {
-	return bitstamp.placeMarketOrder("buy", currency, amount)
+	panic("not implement")
 }
 
 func (bitstamp *Bitstamp) MarketSell(amount, price string, currency CurrencyPair) (*Order, error) {
-	return bitstamp.placeMarketOrder("sell", currency, amount)
+	panic("not implement")
 }
 
 func (bitstamp *Bitstamp) CancelOrder(orderId string, currency CurrencyPair) (bool, error) {

@@ -27,7 +27,7 @@ type response struct {
 }
 
 func NewV2(httpClient *http.Client, accessKey, secretKey, clientId string) *HuoBi_V2 {
-	return &HuoBi_V2{httpClient, clientId, "https://be.huobi.com", accessKey, secretKey}
+    return &HuoBi_V2{httpClient, clientId, "https://api.huobi.pro",accessKey, secretKey}
 }
 
 func (hbV2 *HuoBi_V2) GetAccountId() (string, error) {
@@ -110,6 +110,15 @@ func (hbV2 *HuoBi_V2) GetAccount() (*Account, error) {
 
 	return acc, nil
 }
+
+func (hbV2 *HuoBi_V2) GetRealtimePrice(pair CurrencyPair) (float64,float64){
+	orders1, err := hbV2.GetTicker(pair)
+	if err != nil {
+		panic(err)
+	}
+	return orders1.Buy,orders1.Sell
+}
+
 
 func (hbV2 *HuoBi_V2) placeOrder(amount, price string, pair CurrencyPair, orderType string) (string, error) {
 	path := "/v1/order/orders/place"
@@ -351,6 +360,23 @@ func (hbV2 *HuoBi_V2) GetExchangeName() string {
 	return "huobi.com"
 }
 
+func (hbV2 *HuoBi_V2) GetSymbols(long_polling string) ([]interface{},error){
+	path := "/v1/common/symbols"
+	params := url.Values{}
+	params.Set("long-polling", long_polling)
+	hbV2.buildPostForm("GET", path, &params)
+	respmap, err := HttpGet(hbV2.httpClient, fmt.Sprintf("%s%s?%s", hbV2.baseUrl, path, params.Encode()))
+	if err != nil {
+		return nil, err
+	}
+
+	if respmap["status"].(string) != "ok" {
+		return nil, errors.New(respmap["err-code"].(string))
+	}
+	datamap := respmap["data"].([]interface{})
+	return datamap,nil
+}
+
 func (hbV2 *HuoBi_V2) GetTicker(currencyPair CurrencyPair) (*Ticker, error) {
 	url := hbV2.baseUrl + "/market/detail/merged?symbol=" + strings.ToLower(currencyPair.ToSymbol(""))
 	respmap, err := HttpGet(hbV2.httpClient, url)
@@ -433,14 +459,25 @@ func (hbV2 *HuoBi_V2) GetDepth(size int, currency CurrencyPair) (*Depth, error) 
 
 	return depth, nil
 }
+// 1min: {'status': 'ok', 'ts': 1521594657015, 'tick': {'id': 1521594600, 'count': 93, 'close': 8966.45, 'open': 8956.77, 'amount': 18.096073528193205, 'low': 8950.05, 'vol': 162161.74979831, 'high': 8966.6}, 'ch': 'market.btcusdt.kline.1min'}
+func (hbV2 *HuoBi_V2) GetKlineRecords(currency CurrencyPair, period,size string) ([]interface{}, error) {
+	url := hbV2.baseUrl + "/market/kline?symbol=%s&period=%s&size=%s"
+	respmap, err := HttpGet(hbV2.httpClient, fmt.Sprintf(url, strings.ToLower(currency.ToSymbol("")),period,size))
+	if err != nil {
+		return nil, err
+	}
+	if respmap["status"].(string) != "ok" {
+		return nil, errors.New(respmap["err-code"].(string))
+	}
+	datamap := respmap["tick"].([]interface{})
+	return datamap,nil
 
-func (hbV2 *HuoBi_V2) GetKlineRecords(currency CurrencyPair, period, size, since int) ([]Kline, error) {
-	panic("not implement")
+
 }
 
 //非个人，整个交易所的交易记录
 func (hbV2 *HuoBi_V2) GetTrades(currencyPair CurrencyPair, since int64) ([]Trade, error) {
-	panic("not implement")
+		panic("not")
 }
 
 func (hbV2 *HuoBi_V2) buildPostForm(reqMethod, path string, postForm *url.Values) error {
@@ -451,7 +488,8 @@ func (hbV2 *HuoBi_V2) buildPostForm(reqMethod, path string, postForm *url.Values
 	domain := strings.Replace(hbV2.baseUrl, "https://", "", len(hbV2.baseUrl))
 	payload := fmt.Sprintf("%s\n%s\n%s\n%s", reqMethod, domain, path, postForm.Encode())
 	sign, _ := GetParamHmacSHA256Base64Sign(hbV2.secretKey, payload)
-	postForm.Set("Signature", sign)
+//    println("sign:"+sign)
+    postForm.Set("Signature", sign)
 	return nil
 }
 
