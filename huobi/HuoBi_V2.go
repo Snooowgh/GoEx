@@ -71,7 +71,7 @@ func (hbV2 *HuoBi_V2) GetAccount() (*Account, error) {
 	//log.Println(respmap)
 
 	if respmap["status"].(string) != "ok" {
-		return nil, errors.New(respmap["err-code"].(string))
+		return nil, errors.New(respmap["err-code"].(string)+respmap["err-msg"].(string))
 	}
 
 	datamap := respmap["data"].(map[string]interface{})
@@ -460,21 +460,45 @@ func (hbV2 *HuoBi_V2) GetDepth(size int, currency CurrencyPair) (*Depth, error) 
 	return depth, nil
 }
 // 1min: {'status': 'ok', 'ts': 1521594657015, 'tick': {'id': 1521594600, 'count': 93, 'close': 8966.45, 'open': 8956.77, 'amount': 18.096073528193205, 'low': 8950.05, 'vol': 162161.74979831, 'high': 8966.6}, 'ch': 'market.btcusdt.kline.1min'}
-func (hbV2 *HuoBi_V2) GetKlineRecords(currency CurrencyPair, period,size string) ([]interface{}, error) {
-	url := hbV2.baseUrl + "/market/kline?symbol=%s&period=%s&size=%s"
-	respmap, err := HttpGet(hbV2.httpClient, fmt.Sprintf(url, strings.ToLower(currency.ToSymbol("")),period,size))
+func (hbV2 *HuoBi_V2) GetKlineNewestRecords(currency CurrencyPair, period string) (*Kline, error) {
+	url := hbV2.baseUrl + "/market/kline?symbol=%s&period=%s"
+	respmap, err := HttpGet(hbV2.httpClient, fmt.Sprintf(url, strings.ToLower(currency.ToSymbol("")),period))
 	if err != nil {
 		return nil, err
 	}
 	if respmap["status"].(string) != "ok" {
 		return nil, errors.New(respmap["err-code"].(string))
 	}
-	datamap := respmap["tick"].([]interface{})
-	return datamap,nil
-
-
+	datamap := respmap["tick"].(map[string]interface{})
+	return &Kline{respmap["ts"].(int64),datamap["open"].(float64),datamap["close"].(float64),datamap["high"].(float64),datamap["low"].(float64),datamap["amount"].(float64)},nil
 }
-
+// type Kline struct {
+// 	Timestamp int64
+// 	Open,
+// 	Close,
+// 	High,
+// 	Low,
+// 	Vol float64
+// }
+// {'data': [{'open': 8079.0, 'count': 108814, 'high': 8250.0, 'amount': 20360.770238282636, 'close': 7943.89, 'id': 1522080000, 'vol': 161917170.80999702, 'low': 7747.54}, {'open': 8469.32, 'count': 107475, 'high': 8650.0, 'amount': 18753.829437026616, 'close': 8079.0, 'id': 1521993600, 'vol': 155600300.47142583, 'low': 8022.0}, {'open': 8949.99, 'count': 103718, 'high': 8970.46, 'amount': 14693.676496052474, 'close': 8469.32, 'id': 1521907200, 'vol': 125971152.92548507, 'low': 8360.0}, {'open': 8626.15, 'count': 98340, 'high': 9020.0, 'amount': 13462.370862211717, 'close': 8950.0, 'id': 1521820800, 'vol': 118718300.93558992, 'low': 8560.0}, {'open': 8612.56, 'count': 100205, 'high': 8757.55, 'amount': 15804.689718100044, 'close': 8625.0, 'id': 1521734400, 'vol': 134596237.5220338, 'low': 8277.05}], 'ts': 1522140262156, 'status': 'ok', 'ch': 'market.btcusdt.kline.1day'}
+func (hbV2 *HuoBi_V2) GetKlineHistoryRecords(currency CurrencyPair, period string,size string) ([]Kline, error) {
+	url := hbV2.baseUrl + "/market/history/kline?symbol=%s&size=%s&period=%s"
+	respmap, err := HttpGet(hbV2.httpClient, fmt.Sprintf(url, strings.ToLower(currency.ToSymbol("")),size,period))
+	
+	if err != nil {
+		return nil, err
+	}
+	if respmap["status"].(string) != "ok" {
+		return nil, errors.New(respmap["err-code"].(string)+" "+respmap["err-msg"].(string))
+	}
+	data := respmap["data"].([]interface{})
+	result := make([]Kline,0)
+	for _,datamap := range data{
+		datamap:=datamap.(map[string]interface{})
+		result=append(result, Kline{0,datamap["open"].(float64),datamap["close"].(float64),datamap["high"].(float64),datamap["low"].(float64),datamap["amount"].(float64)})
+	}
+	return result,nil
+}
 //非个人，整个交易所的交易记录
 func (hbV2 *HuoBi_V2) GetTrades(currencyPair CurrencyPair, since int64) ([]Trade, error) {
 		panic("not")
