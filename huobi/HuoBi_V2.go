@@ -17,6 +17,7 @@ type HuoBi_V2 struct {
 	baseUrl,
 	accessKey,
 	secretKey string
+	marginAccountId map[string]string
 }
 
 type response struct {
@@ -26,10 +27,12 @@ type response struct {
 	Errcode string          `json:"err-code"`
 }
 
-func NewV2(httpClient *http.Client, accessKey, secretKey, clientId string) *HuoBi_V2 {
-    return &HuoBi_V2{httpClient, clientId, "https://api.huobi.pro",accessKey, secretKey}
+func NewV2(httpClient *http.Client, accessKey, secretKey string) *HuoBi_V2 {
+	hb2 := HuoBi_V2{httpClient:httpClient, baseUrl:"https://api.huobi.pro",accessKey:accessKey, secretKey:secretKey}
+	hb2.GetAccountId()
+	return &hb2
 }
-
+// [map[id:440177 type:spot subtype: state:working] map[id:2.741854e+06 type:margin subtype:bchusdt state:working] map[id:822037 type:margin subtype:btcusdt state:working] map[state:working id:1.214779e+06 type:margin subtype:eosusdt] map[type:margin subtype:ethusdt state:working id:2.137812e+06] map[id:2.741856e+06 type:margin subtype:iostusdt state:working] map[subtype:neousdt state:working id:2.741813e+06 type:margin] map[state:working id:2.196317e+06 type:margin subtype:qtumbtc] map[id:2.196318e+06 type:margin subtype:xrpbtc state:working] map[state:working id:1.44542e+06 type:margin subtype:xrpusdt] map[type:margin subtype:zecusdt state:working id:1.635943e+06] map[id:703716 type:otc subtype: state:working] map[id:2.969739e+06 type:point subtype: state:working]]
 func (hbV2 *HuoBi_V2) GetAccountId() (string, error) {
 	path := "/v1/account/accounts"
 	params := &url.Values{}
@@ -48,8 +51,18 @@ func (hbV2 *HuoBi_V2) GetAccountId() (string, error) {
 
 	data := respmap["data"].([]interface{})
 	accountIdMap := data[0].(map[string]interface{})
-	hbV2.accountId = fmt.Sprintf("%.f", accountIdMap["id"].(float64))
+	hbV2.marginAccountId = make(map[string]string)
+	for i,v := range data{
+		if i==0{
+			continue
+		}else{
+			temp := v.(map[string]interface{})
+			hbV2.marginAccountId[temp["subtype"].(string)] = fmt.Sprintf("%.f", temp["id"].(float64))
+		}
+	}
 
+	hbV2.accountId = fmt.Sprintf("%.f", accountIdMap["id"].(float64))
+	
 	//log.Println(respmap)
 	return hbV2.accountId, nil
 }
@@ -127,7 +140,48 @@ func (hbV2 *HuoBi_V2) placeOrder(amount, price string, pair CurrencyPair, orderT
 	params.Set("amount", amount)
 	params.Set("symbol", strings.ToLower(pair.ToSymbol("")))
 	params.Set("type", orderType)
+	
+	switch orderType {
+	case "buy-limit", "sell-limit":
+		params.Set("price", price)
+	}
 
+	hbV2.buildPostForm("POST", path, &params)
+
+	resp, err := HttpPostForm3(hbV2.httpClient, hbV2.baseUrl+path+"?"+params.Encode(), hbV2.toJson(params),
+		map[string]string{"Content-Type": "application/json", "Accept-Language": "zh-cn"})
+	if err != nil {
+		return "", err
+	}
+
+	respmap := make(map[string]interface{})
+	err = json.Unmarshal(resp, &respmap)
+	if err != nil {
+		return "", err
+	}
+
+	if respmap["status"].(string) != "ok" {
+		return "", errors.New(respmap["err-code"].(string))
+	}
+
+	return respmap["data"].(string), nil
+}
+
+func (hbV2 *HuoBi_V2) placeMarginkOrder(amount, price string, pair CurrencyPair, orderType string) (string, error) {
+	path := "/v1/order/orders/place"
+	params := url.Values{}
+	p := strings.ToLower(pair.ToSymbol(""))
+	id := hbV2.marginAccountId[p]
+	if id != ""{
+		params.Set("account-id", id)
+	}else{
+		panic(errors.New("Unsupported pairs!"))
+	}
+	params.Set("amount", amount)
+	params.Set("symbol", strings.ToLower(pair.ToSymbol("")))
+	params.Set("type", orderType)
+	params.Set("source", "margin-api")
+	
 	switch orderType {
 	case "buy-limit", "sell-limit":
 		params.Set("price", price)
@@ -195,6 +249,59 @@ func (hbV2 *HuoBi_V2) MarketBuy(amount, price string, currency CurrencyPair) (*O
 
 func (hbV2 *HuoBi_V2) MarketSell(amount, price string, currency CurrencyPair) (*Order, error) {
 	orderId, err := hbV2.placeOrder(amount, price, currency, "sell-market")
+	if err != nil {
+		return nil, err
+	}
+	return &Order{
+		Currency: currency,
+		OrderID:  ToInt(orderId),
+		Amount:   ToFloat64(amount),
+		Price:    ToFloat64(price),
+		Side:     SELL_MARKET}, nil
+}
+
+
+func (hbV2 *HuoBi_V2) LimitMarginBuy(amount, price string, currency CurrencyPair) (*Order, error) {
+	orderId, err := hbV2.placeMarginkOrder(amount, price, currency, "buy-limit")
+	if err != nil {
+		return nil, err
+	}
+	return &Order{
+		Currency: currency,
+		OrderID:  ToInt(orderId),
+		Amount:   ToFloat64(amount),
+		Price:    ToFloat64(price),
+		Side:     BUY}, nil
+}
+
+func (hbV2 *HuoBi_V2) LimitMarginSell(amount, price string, currency CurrencyPair) (*Order, error) {
+	orderId, err := hbV2.placeMarginkOrder(amount, price, currency, "sell-limit")
+	if err != nil {
+		return nil, err
+	}
+	return &Order{
+		Currency: currency,
+		OrderID:  ToInt(orderId),
+		Amount:   ToFloat64(amount),
+		Price:    ToFloat64(price),
+		Side:     SELL}, nil
+}
+
+func (hbV2 *HuoBi_V2) MarketMarginBuy(amount, price string, currency CurrencyPair) (*Order, error) {
+	orderId, err := hbV2.placeMarginkOrder(amount, price, currency, "buy-market")
+	if err != nil {
+		return nil, err
+	}
+	return &Order{
+		Currency: currency,
+		OrderID:  ToInt(orderId),
+		Amount:   ToFloat64(amount),
+		Price:    ToFloat64(price),
+		Side:     BUY_MARKET}, nil
+}
+
+func (hbV2 *HuoBi_V2) MarketMarginSell(amount, price string, currency CurrencyPair) (*Order, error) {
+	orderId, err := hbV2.placeMarginkOrder(amount, price, currency, "sell-market")
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +483,7 @@ func (hbV2 *HuoBi_V2) GetSymbols(long_polling string) ([]interface{},error){
 	datamap := respmap["data"].([]interface{})
 	return datamap,nil
 }
-
+//完善深度函数
 func (hbV2 *HuoBi_V2) GetTicker(currencyPair CurrencyPair) (*Ticker, error) {
 	url := hbV2.baseUrl + "/market/detail/merged?symbol=" + strings.ToLower(currencyPair.ToSymbol(""))
 	respmap, err := HttpGet(hbV2.httpClient, url)
