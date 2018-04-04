@@ -1,7 +1,7 @@
 package btcbox
 
 import (
-	. "github.com/nntaoli-project/GoEx"
+	. "github.com/Snooowgh/GoEx"
 	"net/http"
 	"strings"
 )
